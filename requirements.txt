@@ -1,0 +1,8 @@
+python-telegram-bot==20.6
+transformers
+torch
+torchvision
+docx
+nltk
+sacrebleu
+nest-asyncio

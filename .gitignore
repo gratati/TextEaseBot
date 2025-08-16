@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+model/
+nltk_data/
+*.zip
+*.token
