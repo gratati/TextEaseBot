@@ -1,8 +1,12 @@
 python-telegram-bot==20.6
 transformers
 torch
-torchvision
-docx
+python-docx
 nltk
-sacrebleu
 nest-asyncio
+python-dotenv
+sacrebleu
+sentencepiece
+langdetect
+chardet
+spacy

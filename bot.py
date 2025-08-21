@@ -1,96 +1,91 @@
-# bot.py
-# Основной файл запуска TextEaseBot
-
 import asyncio
 import logging
 import os
-from getpass import getpass
-from telegram.ext import Application
+import signal
+import sys
 from dotenv import load_dotenv
 
-# --- Загрузка переменных окружения ---
-load_dotenv()
+from telegram.ext import Application
+from download_model import download_and_setup_models
+from handlers import setup_handlers
+from callbacks import setup_callbacks
 
-TOKEN = os.getenv("BOT_TOKEN")
-MODEL_PATH = os.getenv("MODEL_PATH")
-
-if not TOKEN:
-    print("🔐 Токен не найден в .env. Введите вручную:")
-    TOKEN = getpass()
-    with open(".env", "a") as f:
-        f.write(f"BOT_TOKEN={TOKEN}\n")
-
-if not MODEL_PATH:
-    raise ValueError("❌ MODEL_PATH не найден в .env. Запустите download_model.py")
-
-# --- Настройка логирования ---
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# --- Загрузка моделей ---
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"✅ Используем устройство: {device}")
+# Загрузка переменных окружения
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+# Проверка токена
+if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+    raise RuntimeError("❌ Токен бота не предоставлен. Бот не может быть запущен.")
 
-print("📥 Загружаем модель упрощения...")
-simplify_tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-simplify_model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH).to(device)
+print(f"✅ Токен бота загружен: {BOT_TOKEN[:10]}...")
 
-print("📥 Загружаем модель перевода...")
-translator_tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ru-en")
-translator_model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-ru-en").to(device)
+# Обработчик сигналов для корректного завершения работы
+def signal_handler(sig, frame):
+    """Обработчик сигналов для корректного завершения работы"""
+    print("\n🛑 Получен сигнал завершения. Останавливаем бота...")
+    sys.exit(0)
 
-# --- Инициализация утилит ---
-import utils
-import handlers
-import callbacks
-from nltk.tokenize import sent_tokenize
+async def shutdown(application):
+    """Корректное завершение работы приложения"""
+    print("🔄 Завершаем работу бота...")
+    try:
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+    except Exception as e:
+        print(f"❌ Ошибка при завершении работы: {e}")
 
-# Передаём зависимости в модули
-utils.simplify_tokenizer = simplify_tokenizer
-utils.simplify_model = simplify_model
-utils.translator_tokenizer = translator_tokenizer
-utils.translator_model = translator_model
-utils.device = device
-utils.sent_tokenize = sent_tokenize
-
-handlers.sent_tokenize = sent_tokenize
-
-callbacks.simplify_long_text = utils.simplify_long_text
-callbacks.translate_text = utils.translate_text
-callbacks.evaluate_simplification = utils.evaluate_simplification
-callbacks.split_text = utils.split_text
-callbacks.sent_tokenize = sent_tokenize
-callbacks.logger = logger
-
-# --- Запуск бота ---
 async def main():
-    print("🚀 Создаём приложение...")
-    app = Application.builder().token(TOKEN).build()
-
-    # Регистрируем обработчики
-    handlers.register_handlers(app)
-    callbacks.register_callbacks(app)
-
-    print("🤖 Бот запущен. Ожидаем сообщения...")
-    while True:
-        try:
-            await app.run_polling(
-                poll_interval=2,
-                timeout=20,
-                drop_pending_updates=True
-            )
-        except Exception as e:
-            logger.warning(f"🔁 Ошибка: {e}. Перезапуск через 5 сек...")
-            await asyncio.sleep(5)
+    try:
+        # Загрузка моделей
+        models = await download_and_setup_models()
+        
+        # Создание приложения
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Настройка обработчиков
+        setup_handlers(application, models)
+        setup_callbacks(application, models)
+        
+        print("🤖 Бот запущен...")
+        print("💡 Для остановки бота нажмите Ctrl+C")
+        
+        # Инициализация и запуск
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(drop_pending_updates=True)
+        
+        # Ожидаем сигнала завершения
+        while True:
+            await asyncio.sleep(1)
+            
+    except Exception as e:
+        print(f"❌ Ошибка при запуске бота: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        if 'application' in locals():
+            await shutdown(application)
+        print("🛑 Бот остановлен")
 
 if __name__ == "__main__":
+    # Регистрируем обработчики сигналов
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("🛑 Бот остановлен вручную.")
-        
+        print("\n🛑 Получен сигнал завершения. Останавливаем бота...")
+    except Exception as e:
+        print(f"❌ Необработанное исключение: {e}")
+        import traceback
+        traceback.print_exc()

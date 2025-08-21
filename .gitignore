@@ -1,7 +1,42 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables
 .env
-model/
+
+# Models and data
+*.bin
+*.safetensors
 nltk_data/
+rut5_simplifier_new/
+
+# Temporary files
+*.tmp
 *.zip
-*.token

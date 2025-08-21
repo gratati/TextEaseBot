@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  texteasebot:
+    build: .
+    container_name: texteasebot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - MODEL_PATH=/app/models
+    volumes:
+      - ./models:/app/models
+      - ./nltk_data:/app/nltk_data
+    # Раскомментируйте для доступа к логам
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m"
+    #     max-file: "3"
